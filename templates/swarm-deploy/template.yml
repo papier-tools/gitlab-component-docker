@@ -23,7 +23,7 @@ spec:
 deploy-stack:
   stage: $[[ inputs.stage ]]
   image: docker:$[[ inputs.docker-version ]]
-  tags: ["$[[ inputs.docker-compose ]]"]
+  tags: ["$[[ inputs.master-swarm-tag ]]"]
   script:
     - | # Registry connection if needed
       if [ $[[ inputs.internal-registry ]] == "true" ]; then
