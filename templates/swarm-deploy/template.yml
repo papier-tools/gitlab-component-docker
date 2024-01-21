@@ -3,7 +3,7 @@ spec:
     stage:
       default: deploy
     docker-version:
-      default: 23.0.1
+      default: "23.0.1"
     docker-compose:
       default: ci/docker-compose.yml
     project-name:
@@ -11,7 +11,7 @@ spec:
     master-swarm-tag:
       default: swarm
     internal-registry:
-      default: false
+      default: "false"
     internal-registry-url:
       default: $CI_REGISTRY
     internal-registry-user:
