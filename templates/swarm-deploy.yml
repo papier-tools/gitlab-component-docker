@@ -22,9 +22,9 @@ spec:
       default: $CI_REGISTRY_PASSWORD
 ---
 
-deploy-stack:
+ deploy-stack:
   stage: $[[ inputs.stage ]]
-  image: docker:$[[ inputs.docker-version ]]
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:$[[ inputs.docker-version ]]
   tags: ["$[[ inputs.master-swarm-tag ]]"]
   script:
     - | # Registry connection if needed

@@ -5,36 +5,56 @@ spec:
     docker-version:
       default: "23.0.1"
 
-    docker-compose:
-      default: ci/docker-compose.yml
-    project-name:
-      default: $CI_PROJECT_NAME
-    master-swarm-tag:
-      default: swarm
-
-    internal-registry:
-      default: "false"
     internal-registry-url:
       default: $CI_REGISTRY
     internal-registry-user:
       default: $CI_REGISTRY_USER
     internal-registry-password:
       default: $CI_REGISTRY_PASSWORD
+
+    image-platforms:
+      default: "linux/amd64,linux/arm64"
+    image-dockerfile:
+      default: Dockerfile
+    image-build-path:
+      default: "."
 ---
+
+############################
+## JOBS
+############################
 
 publish-image:
   stage: $[[ inputs.stage ]]
-  image: docker:$[[ inputs.docker-version ]]
-  tags: ["$[[ inputs.master-swarm-tag ]]"]
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:$[[ inputs.docker-version ]]-git
+  services:
+    - name: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:$[[ inputs.docker-version ]]-dind
+      alias: docker
+  before_script:
+    - |
+      docker login \
+        -u $[[ inputs.internal-registry-user ]] \
+        -p $[[ inputs.internal-registry-password ]] \
+        $[[ inputs.internal-registry-url ]]
+    - docker run --privileged --rm tonistiigi/binfmt --install all
+    - docker buildx create --use --name multi-arch-builder --driver-opt network=host --driver-opt image=moby/buildkit:v0.10.6
   script:
-    - | # Registry connection if needed
-      if [ $[[ inputs.internal-registry ]] == "true" ]; then
-        docker login \
-          -u $[[ inputs.internal-registry-user ]] \
-          -p $[[ inputs.internal-registry-password ]] \
-          $[[ inputs.internal-registry-url ]]
-      fi
-    - docker stack deploy -c $[[ inputs.docker-compose ]] --prune --with-registry-auth $[[ inputs.project-name ]]
+    - |
+      docker buildx build --platform $[[ inputs.image-platforms ]] ${IMAGE} \
+        -f $[[ inputs.image-dockerfile ]] --push $[[ inputs.image-build-path ]]
+  after_script:
+    - docker logout
+    - docker buildx rm multi-arch-builder
+
+create-release:
+  stage: $[[ inputs.stage ]]
+  image: registry.gitlab.com/gitlab-org/release-cli:latest
+  script: echo "💥 Creating release $CI_COMMIT_TAG"
+  release:
+    tag_name: $CI_COMMIT_TAG
+    description: "💥 [RELEASE] Release $CI_COMMIT_TAG"
+  rules:
+    - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+$/
 
 ############################
 ## WORKFLOW
@@ -43,16 +63,20 @@ publish-image:
 workflow:
   name: ${PIPELINE_NAME}
   rules:
+    # MASTER
     - if: $CI_COMMIT_REF_NAME == $CI_DEFAULT_BRANCH
       variables:
-        PIPELINE_NAME: 🚀 [PROD] Nouvelle imaaaaage !
-    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/
+        IMAGE: $CI_REGISTRY_IMAGE:latest
+        PIPELINE_NAME: 🚀 [PROD] Deploy ${IMAGE}
+    # TAG
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+$/
       variables:
-        PIPELINE_NAME: 💥 [PROD] Image $CI_COMMIT_TAG (stable)
-    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_TAG
+        IMAGE: $CI_REGISTRY_IMAGE:$CI_COMMIT_TAG
+        PIPELINE_NAME: 💥 [RELEASE] Deploy ${IMAGE}
+    # DEV
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME && $CI_COMMIT_REF_NAME != $CI_DEFAULT_BRANCH
       variables:
-        PIPELINE_NAME: 🚚 [DEV] Image (tag) $CI_COMMIT_TAG
-    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME && $CI_COMMIT_REF_NAME != "master"
-      variables:
-        PIPELINE_NAME: 🚚 [DEV] Image $CI_COMMIT_REF_NAME
+        IMAGE: $CI_REGISTRY_IMAGE/test:$CI_COMMIT_REF_NAME
+        PIPELINE_NAME: 🚚 [DEV] Deploy ${IMAGE}
+    # OTHER
     - when: never
