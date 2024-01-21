@@ -1,6 +1,8 @@
 
+stages: [release]
+
 create-release:
-  stage: deploy
+  stage: release
   image: registry.gitlab.com/gitlab-org/release-cli:latest
   rules:
     - if: $CI_COMMIT_TAG =~ /^[0-9]+\.[0-9]+\.[0-9]+$/
