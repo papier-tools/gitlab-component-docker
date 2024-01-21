@@ -15,11 +15,13 @@ stages:
 ensure-job-added:
   stage: test
   image: badouralix/curl-jq
+  variables:
+    JOB_PATH: "https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs"
   script:
     - |
-      route="https://gitlab.com/api/v4/projects/$CI_PROJECT_ID/pipelines/$CI_PIPELINE_ID/jobs"
-      count=`curl --silent --header "PRIVATE-TOKEN: $API_TOKEN" $route | jq 'map(select(.name | contains("component-job"))) | length'`
-      if [ "$count" != "1" ]; then
+      COMPONENT_JOB_COUNT=`curl --silent --header "PRIVATE-TOKEN: $API_TOKEN" $JOB_PATH | jq 'map(select(.name | contains("component-job"))) | length'`
+    - |
+      if [ "$COMPONENT_JOB_COUNT" != "1" ]; then
         exit 1
       fi
 
