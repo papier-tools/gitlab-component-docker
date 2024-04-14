@@ -1,0 +1,37 @@
+spec:
+  inputs:
+    stage:
+      default: deploy
+    docker-version:
+      default: "23.0.1"
+
+    docker-compose:
+      default: ci/docker-compose.yml
+    project-name:
+      default: $CI_PROJECT_NAME
+    master-swarm-tag:
+      default: swarm
+
+    internal-registry:
+      default: "false"
+    internal-registry-url:
+      default: $CI_REGISTRY
+    internal-registry-user:
+      default: $CI_REGISTRY_USER
+    internal-registry-password:
+      default: $CI_REGISTRY_PASSWORD
+---
+
+ deploy-stack:
+  stage: $[[ inputs.stage ]]
+  image: ${CI_DEPENDENCY_PROXY_GROUP_IMAGE_PREFIX}/docker:$[[ inputs.docker-version ]]
+  tags: ["$[[ inputs.master-swarm-tag ]]"]
+  script:
+    - | # Registry connection if needed
+      if [ $[[ inputs.internal-registry ]] == "true" ]; then
+        docker login \
+          -u $[[ inputs.internal-registry-user ]] \
+          -p $[[ inputs.internal-registry-password ]] \
+          $[[ inputs.internal-registry-url ]]
+      fi
+    - docker stack deploy -c $[[ inputs.docker-compose ]] --prune --with-registry-auth $[[ inputs.project-name ]]
